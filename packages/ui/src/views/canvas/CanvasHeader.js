@@ -1,6 +1,6 @@
 import PropTypes from 'prop-types'
 import { useNavigate } from 'react-router-dom'
-import { useSelector } from 'react-redux'
+import { useSelector, useDispatch } from 'react-redux'
 import { useEffect, useRef, useState } from 'react'
 
 // material-ui
@@ -13,7 +13,8 @@ import { IconSettings, IconChevronLeft, IconDeviceFloppy, IconPencil, IconCheck,
 // project imports
 import Settings from 'views/settings'
 import SaveChatflowDialog from 'ui-component/dialog/SaveChatflowDialog'
-import APICodeDialog from 'ui-component/dialog/APICodeDialog'
+import APICodeDialog from 'views/chatflows/APICodeDialog'
+import AnalyseFlowDialog from 'ui-component/dialog/AnalyseFlowDialog'
 
 // API
 import chatflowsApi from 'api/chatflows'
@@ -24,11 +25,13 @@ import useApi from 'hooks/useApi'
 // utils
 import { generateExportFlowData } from 'utils/genericHelper'
 import { uiBaseURL } from 'store/constant'
+import { SET_CHATFLOW } from 'store/actions'
 
 // ==============================|| CANVAS HEADER ||============================== //
 
 const CanvasHeader = ({ chatflow, handleSaveFlow, handleDeleteFlow, handleLoadFlow }) => {
     const theme = useTheme()
+    const dispatch = useDispatch()
     const navigate = useNavigate()
     const flowNameRef = useRef()
     const settingsRef = useRef()
@@ -39,6 +42,8 @@ const CanvasHeader = ({ chatflow, handleSaveFlow, handleDeleteFlow, handleLoadFl
     const [flowDialogOpen, setFlowDialogOpen] = useState(false)
     const [apiDialogOpen, setAPIDialogOpen] = useState(false)
     const [apiDialogProps, setAPIDialogProps] = useState({})
+    const [analyseDialogOpen, setAnalyseDialogOpen] = useState(false)
+    const [analyseDialogProps, setAnalyseDialogProps] = useState({})
 
     const updateChatflowApi = useApi(chatflowsApi.updateChatflow)
     const canvas = useSelector((state) => state.canvas)
@@ -48,6 +53,12 @@ const CanvasHeader = ({ chatflow, handleSaveFlow, handleDeleteFlow, handleLoadFl
 
         if (setting === 'deleteChatflow') {
             handleDeleteFlow()
+        } else if (setting === 'analyseChatflow') {
+            setAnalyseDialogProps({
+                title: 'Analyse Chatflow',
+                chatflow: chatflow
+            })
+            setAnalyseDialogOpen(true)
         } else if (setting === 'duplicateChatflow') {
             try {
                 localStorage.setItem('duplicatedFlowData', chatflow.flowData)
@@ -88,8 +99,8 @@ const CanvasHeader = ({ chatflow, handleSaveFlow, handleDeleteFlow, handleLoadFl
     }
 
     const onAPIDialogClick = () => {
+        // If file type is file, isFormDataRequired = true
         let isFormDataRequired = false
-
         try {
             const flowData = JSON.parse(chatflow.flowData)
             const nodes = flowData.nodes
@@ -103,11 +114,27 @@ const CanvasHeader = ({ chatflow, handleSaveFlow, handleDeleteFlow, handleLoadFl
             console.error(e)
         }
 
+        // If sessionId memory, isSessionMemory = true
+        let isSessionMemory = false
+        try {
+            const flowData = JSON.parse(chatflow.flowData)
+            const nodes = flowData.nodes
+            for (const node of nodes) {
+                if (node.data.inputParams.find((param) => param.name === 'sessionId')) {
+                    isSessionMemory = true
+                    break
+                }
+            }
+        } catch (e) {
+            console.error(e)
+        }
+
         setAPIDialogProps({
             title: 'Embed in website or use as API',
             chatflowid: chatflow.id,
             chatflowApiKeyId: chatflow.apikeyid,
-            isFormDataRequired
+            isFormDataRequired,
+            isSessionMemory
         })
         setAPIDialogOpen(true)
     }
@@ -125,6 +152,7 @@ const CanvasHeader = ({ chatflow, handleSaveFlow, handleDeleteFlow, handleLoadFl
     useEffect(() => {
         if (updateChatflowApi.data) {
             setFlowName(updateChatflowApi.data.name)
+            dispatch({ type: SET_CHATFLOW, chatflow: updateChatflowApi.data })
         }
         setEditingFlowName(false)
 
@@ -338,6 +366,7 @@ const CanvasHeader = ({ chatflow, handleSaveFlow, handleDeleteFlow, handleLoadFl
                 onConfirm={onConfirmSaveName}
             />
             <APICodeDialog show={apiDialogOpen} dialogProps={apiDialogProps} onCancel={() => setAPIDialogOpen(false)} />
+            <AnalyseFlowDialog show={analyseDialogOpen} dialogProps={analyseDialogProps} onCancel={() => setAnalyseDialogOpen(false)} />
         </>
     )
 }
